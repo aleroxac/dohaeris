@@ -1,25 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, Goal, Asset, ShoppingTrip } from "../types";
 
-// Safe access to process.env
-const getApiKey = () => {
-    try {
-        if (typeof process !== 'undefined' && process.env) {
-            return process.env.API_KEY || '';
-        }
-    } catch (e) {
-        // Ignore errors if process is not defined
-    }
-    return '';
-};
-
-const apiKey = getApiKey();
-
-// Initialize safe client
-let ai: GoogleGenAI | null = null;
-if (apiKey) {
-    ai = new GoogleGenAI({ apiKey });
-}
+// Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeFinances = async (
     transactions: Transaction[], 
@@ -27,10 +10,6 @@ export const analyzeFinances = async (
     assets: Asset[],
     shoppingTrips: ShoppingTrip[]
 ): Promise<string> => {
-    if (!ai) {
-        return "API Key not configured. Please check your environment variables.";
-    }
-
     const earnings = transactions.filter(t => t.type === 'INCOME');
     const expenses = transactions.filter(t => t.type === 'EXPENSE');
     
@@ -65,10 +44,12 @@ export const analyzeFinances = async (
     `;
 
     try {
+        // Use 'gemini-3-flash-preview' for summarization and analysis tasks as per guidelines.
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
         });
+        // Accessing response.text as a property, which returns the extracted string output.
         return response.text || "Could not generate advice at this time.";
     } catch (error) {
         console.error("Error calling Gemini:", error);
