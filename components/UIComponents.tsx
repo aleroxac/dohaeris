@@ -1,11 +1,14 @@
+
 import React from 'react';
 
-export const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+// Card component with optional children and support for React key
+export const Card = ({ children, className = '' }: { children?: React.ReactNode; className?: string; key?: React.Key }) => (
   <div className={`bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm ${className}`}>
     {children}
   </div>
 );
 
+// Button component with optional children and support for React key
 export const Button = ({ 
   children, 
   onClick, 
@@ -13,11 +16,12 @@ export const Button = ({
   className = '',
   disabled = false
 }: { 
-  children: React.ReactNode; 
+  children?: React.ReactNode; 
   onClick?: () => void; 
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'; 
   className?: string;
   disabled?: boolean;
+  key?: React.Key;
 }) => {
   const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2";
   const variants = {

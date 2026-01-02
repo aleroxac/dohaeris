@@ -39,7 +39,6 @@ import { analyzeFinances } from './services/geminiService';
 // --- CONSTANTS & MOCKS ---
 const COLORS = ['#8b5cf6', '#10b981', '#ef4444', '#f59e0b', '#06b6d4', '#ec4899'];
 
-// Added missing INITIAL_TRANSACTIONS constant to fix the reference error on line 464
 const INITIAL_TRANSACTIONS: Transaction[] = [
     { id: 't1', description: 'Salário Principal', amount: 5000, date: '2023-10-01', type: TransactionType.INCOME, status: 'PAID', paymentMethod: 'CASH', tags: ['salario'] },
     { id: 't2', description: 'Aluguel Mensal', amount: 1500, date: '2023-10-05', type: TransactionType.EXPENSE, category: 'Moradia', status: 'PAID', paymentMethod: 'DEBIT', tags: ['fixo'] },
@@ -414,31 +413,115 @@ const GoalsView = ({ goals, setGoals, formatMoney }: any) => {
     );
 };
 
-const PatrimonyView = ({ assets, formatMoney }: any) => {
+const PatrimonyView = ({ assets, setAssets, formatMoney }: any) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState<string | null>(null);
+    const [form, setForm] = useState({ name: '', value: '', type: 'Bank' as Asset['type'] });
+
     const total = assets.reduce((acc: number, a: any) => acc + a.value, 0);
     const pieData = assets.map((a: any) => ({ name: a.name, value: a.value }));
 
+    const assetTypes: { label: string; value: Asset['type'] }[] = [
+        { label: 'Banco', value: 'Bank' },
+        { label: 'Investimento', value: 'Investment' },
+        { label: 'Cripto', value: 'Crypto' },
+        { label: 'FGTS', value: 'FGTS' },
+        { label: 'Imóvel', value: 'RealEstate' },
+        { label: 'Outro', value: 'Other' },
+    ];
+
+    const resetForm = () => {
+        setForm({ name: '', value: '', type: 'Bank' });
+        setIsEditing(false);
+        setEditId(null);
+    };
+
+    const handleSave = () => {
+        if (!form.name || !form.value) return;
+        
+        if (editId) {
+            setAssets(assets.map((a: Asset) => a.id === editId ? { ...a, ...form, value: parseFloat(form.value) } : a));
+        } else {
+            const newAsset: Asset = {
+                id: Date.now().toString(),
+                name: form.name,
+                value: parseFloat(form.value),
+                type: form.type
+            };
+            setAssets([...assets, newAsset]);
+        }
+        resetForm();
+    };
+
+    const handleEdit = (asset: Asset) => {
+        setForm({ name: asset.name, value: asset.value.toString(), type: asset.type });
+        setEditId(asset.id);
+        setIsEditing(true);
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('Deseja realmente excluir este ativo?')) {
+            setAssets(assets.filter((a: Asset) => a.id !== id));
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
-            <SectionHeader title="Patrimônio" subtitle={`Patrimônio Líquido Total: ${formatMoney(total)}`} />
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-1 h-80">
-                    <h3 className="text-sm font-bold text-slate-400 mb-4 uppercase">Alocação</h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                {pieData.map((_: any, index: number) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                        </PieChart>
-                    </ResponsiveContainer>
+            <SectionHeader 
+                title="Patrimônio" 
+                subtitle={`Patrimônio Líquido Total: ${formatMoney(total)}`} 
+                action={
+                    !isEditing && (
+                        <Button onClick={() => setIsEditing(true)}>
+                            <Plus size={18} /> Novo Ativo
+                        </Button>
+                    )
+                }
+            />
+
+            {isEditing && (
+                <Card className="border-brand-500/30 animate-fade-in bg-slate-900/50">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-lg">{editId ? 'Editar Ativo' : 'Novo Ativo'}</h3>
+                        <Button variant="ghost" onClick={resetForm}><X size={20} /></Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input label="Nome do Ativo" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ex: Investimento X" />
+                        <Input label="Valor" type="number" value={form.value} onChange={e => setForm({...form, value: e.target.value})} placeholder="0.00" />
+                        <Select label="Tipo" value={form.type} onChange={e => setForm({...form, type: e.target.value as Asset['type']})} options={assetTypes} />
+                    </div>
+                    <div className="flex justify-end mt-4 gap-3">
+                        <Button variant="secondary" onClick={resetForm}>Cancelar</Button>
+                        <Button onClick={handleSave} className="min-w-[120px]">
+                            <Save size={18} /> {editId ? 'Atualizar' : 'Salvar'}
+                        </Button>
+                    </div>
                 </Card>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-1 h-80 flex flex-col items-center justify-center">
+                    <h3 className="text-sm font-bold text-slate-400 mb-4 uppercase self-start">Alocação</h3>
+                    {assets.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                    {pieData.map((_: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="text-slate-600 italic text-sm">Nenhum dado para exibir</div>
+                    )}
+                </Card>
+                
                 <Card className="lg:col-span-2 space-y-4">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase">Ativos</h3>
+                    <h3 className="text-sm font-bold text-slate-400 uppercase">Lista de Ativos</h3>
                     <div className="divide-y divide-slate-800">
-                        {assets.map((a: Asset) => (
+                        {assets.length > 0 ? assets.map((a: Asset) => (
                             <div key={a.id} className="py-4 flex justify-between items-center group">
                                 <div className="flex items-center gap-4">
                                     <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-brand-400">
@@ -446,15 +529,30 @@ const PatrimonyView = ({ assets, formatMoney }: any) => {
                                     </div>
                                     <div>
                                         <p className="font-bold">{a.name}</p>
-                                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 uppercase">{a.type}</span>
+                                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 uppercase tracking-tighter">{a.type}</span>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-mono font-bold text-emerald-400">{formatMoney(a.value)}</p>
-                                    <p className="text-[10px] text-slate-500">{((a.value/total)*100).toFixed(1)}% do total</p>
+                                <div className="flex items-center gap-6">
+                                    <div className="text-right">
+                                        <p className="font-mono font-bold text-emerald-400">{formatMoney(a.value)}</p>
+                                        <p className="text-[10px] text-slate-500">{((a.value/total)*100).toFixed(1)}%</p>
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button variant="ghost" className="p-2 h-auto" onClick={() => handleEdit(a)}>
+                                            <Edit2 size={16} className="text-slate-400" />
+                                        </Button>
+                                        <Button variant="ghost" className="p-2 h-auto hover:bg-rose-500/10" onClick={() => handleDelete(a.id)}>
+                                            <Trash2 size={16} className="text-rose-500" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="py-10 text-center text-slate-500">
+                                <Landmark size={48} className="mx-auto mb-2 opacity-10" />
+                                <p>Você ainda não cadastrou nenhum ativo.</p>
+                            </div>
+                        )}
                     </div>
                 </Card>
             </div>
@@ -493,7 +591,7 @@ export default function App() {
           case 'goals':
               return <GoalsView goals={goals} setGoals={setGoals} formatMoney={formatMoney} />;
           case 'patrimony':
-              return <PatrimonyView assets={assets} formatMoney={formatMoney} />;
+              return <PatrimonyView assets={assets} setAssets={setAssets} formatMoney={formatMoney} />;
           default:
               return (
                   <div className="py-20 text-center text-slate-500 animate-fade-in">
