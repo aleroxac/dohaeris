@@ -19,7 +19,8 @@ import {
     Landmark,
     Save,
     X,
-    Sparkles
+    Sparkles,
+    Calendar
 } from 'lucide-react';
 import { 
     ResponsiveContainer,
@@ -171,49 +172,134 @@ const DashboardView = ({ transactions, assets, goals, shopping, formatMoney }: a
 };
 
 const EarningsView = ({ transactions, setTransactions, formatMoney }: any) => {
-    const [desc, setDesc] = useState('');
-    const [val, setVal] = useState('');
-
-    const handleAdd = () => {
-        if (!desc || !val) return;
-        const newTx: Transaction = {
-            id: Date.now().toString(),
-            description: desc,
-            amount: parseFloat(val),
-            date: new Date().toISOString().split('T')[0],
-            type: TransactionType.INCOME,
-            status: 'PAID',
-            paymentMethod: 'CASH',
-            tags: ['extra']
-        };
-        setTransactions([newTx, ...transactions]);
-        setDesc(''); setVal('');
-    };
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState<string | null>(null);
+    const [form, setForm] = useState({ description: '', amount: '', date: new Date().toISOString().split('T')[0] });
 
     const earnings = transactions.filter((t: any) => t.type === TransactionType.INCOME);
 
+    const resetForm = () => {
+        setForm({ description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+        setIsEditing(false);
+        setEditId(null);
+    };
+
+    const handleSave = () => {
+        if (!form.description || !form.amount) return;
+        
+        if (editId) {
+            setTransactions(transactions.map((t: Transaction) => t.id === editId ? { 
+                ...t, 
+                description: form.description, 
+                amount: parseFloat(form.amount),
+                date: form.date
+            } : t));
+        } else {
+            const newTx: Transaction = {
+                id: Date.now().toString(),
+                description: form.description,
+                amount: parseFloat(form.amount),
+                date: form.date,
+                type: TransactionType.INCOME,
+                status: 'PAID',
+                paymentMethod: 'CASH',
+                tags: ['extra']
+            };
+            setTransactions([newTx, ...transactions]);
+        }
+        resetForm();
+    };
+
+    const handleEdit = (tx: Transaction) => {
+        setForm({ description: tx.description, amount: tx.amount.toString(), date: tx.date });
+        setEditId(tx.id);
+        setIsEditing(true);
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('Deseja realmente excluir este lançamento de ganho?')) {
+            setTransactions(transactions.filter((t: Transaction) => t.id !== id));
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
-            <SectionHeader title="Ganhos" subtitle="Gerencie suas fontes de receita" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="md:col-span-1 h-fit">
-                    <h3 className="text-lg font-bold mb-4">Nova Entrada</h3>
-                    <div className="space-y-4">
-                        <Input label="Descrição" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Ex: Salário" />
-                        <Input label="Valor" type="number" value={val} onChange={e => setVal(e.target.value)} placeholder="0,00" />
-                        <Button onClick={handleAdd} className="w-full"><Plus size={18} /> Adicionar</Button>
+            <SectionHeader 
+                title="Ganhos" 
+                subtitle="Gerencie suas fontes de receita" 
+                action={
+                    !isEditing && (
+                        <Button onClick={() => setIsEditing(true)}>
+                            <Plus size={18} /> Novo Ganho
+                        </Button>
+                    )
+                }
+            />
+
+            {isEditing && (
+                <Card className="border-brand-500/30 animate-fade-in bg-slate-900/50">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-lg">{editId ? 'Editar Ganho' : 'Novo Ganho'}</h3>
+                        <Button variant="ghost" onClick={resetForm}><X size={20} /></Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input label="Descrição" value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Ex: Salário" />
+                        <Input label="Valor" type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="0,00" />
+                        <Input label="Data" type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+                    </div>
+                    <div className="flex justify-end mt-4 gap-3">
+                        <Button variant="secondary" onClick={resetForm}>Cancelar</Button>
+                        <Button onClick={handleSave} className="min-w-[120px]">
+                            <Save size={18} /> {editId ? 'Atualizar' : 'Salvar'}
+                        </Button>
                     </div>
                 </Card>
-                <Card className="md:col-span-2 space-y-3">
-                    {earnings.map((t: any) => (
-                        <div key={t.id} className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800">
-                            <div>
-                                <p className="font-medium">{t.description}</p>
-                                <p className="text-xs text-slate-500">{t.date}</p>
-                            </div>
-                            <span className="text-emerald-500 font-bold">{formatMoney(t.amount)}</span>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="md:col-span-1 h-fit bg-gradient-to-br from-slate-900 to-emerald-950/10 border-emerald-900/30">
+                    <h3 className="text-lg font-bold mb-1">Total de Entradas</h3>
+                    <p className="text-slate-400 text-sm mb-4">Consolidado do mês</p>
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-2xl">
+                            <TrendingUp size={24} />
                         </div>
-                    ))}
+                        <span className="text-3xl font-bold text-emerald-500">
+                            {formatMoney(earnings.reduce((acc: number, t: any) => acc + t.amount, 0))}
+                        </span>
+                    </div>
+                </Card>
+
+                <Card className="md:col-span-2 space-y-3">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase mb-2">Histórico de Recebimentos</h3>
+                    <div className="space-y-2">
+                        {earnings.length > 0 ? earnings.map((t: Transaction) => (
+                            <div key={t.id} className="flex items-center justify-between p-3 bg-slate-950/50 rounded-lg border border-slate-800 hover:border-brand-500/30 transition-all group">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-slate-900 rounded-lg text-emerald-500">
+                                        <Calendar size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium">{t.description}</p>
+                                        <p className="text-[10px] text-slate-500 font-mono">{t.date}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className="text-emerald-500 font-bold">{formatMoney(t.amount)}</span>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button variant="ghost" className="p-2 h-auto" onClick={() => handleEdit(t)}>
+                                            <Edit2 size={16} className="text-slate-400" />
+                                        </Button>
+                                        <Button variant="ghost" className="p-2 h-auto hover:bg-rose-500/10" onClick={() => handleDelete(t.id)}>
+                                            <Trash2 size={16} className="text-rose-500" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="py-10 text-center text-slate-500 italic">Nenhum ganho registrado.</div>
+                        )}
+                    </div>
                 </Card>
             </div>
         </div>
